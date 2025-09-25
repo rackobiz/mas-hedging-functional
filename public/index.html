@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAS Hedging - Premium Non-Ferrous Metals Protection Platform</title>
+    <meta name="description" content="Professional hedging solutions for non-ferrous metals trading. Real-time market data, advanced analytics, and comprehensive risk management.">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link href="https://cdn.tailwindcss.com/3.3.0" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com/3.3.0"></script>
+    
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Vanta.js for background animation -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.globe.min.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .vanta-canvas { position: fixed !important; z-index: -1; }
+        .glass-effect { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
+        .gradient-text { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .animate-fade-in { animation: fadeIn 0.6s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .notification { position: fixed; top: 20px; right: 20px; z-index: 1000; padding: 16px; border-radius: 8px; color: white; font-weight: 500; transform: translateX(400px); transition: transform 0.3s ease; }
+        .notification.show { transform: translateX(0); }
+        .notification.success { background: #10b981; }
+        .notification.error { background: #ef4444; }
+        .notification.warning { background: #f59e0b; }
+        .notification.info { background: #3b82f6; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white overflow-x-hidden">
+    <!-- Vanta.js Background -->
+    <div id="vanta-bg" class="fixed inset-0 z-0"></div>
+    
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 glass-effect border-b border-white/10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-4">
+                    <div class="text-2xl font-bold gradient-text">MAS Hedging</div>
+                    <div class="hidden md:flex space-x-6">
+                        <a href="#home" class="nav-link hover:text-blue-400 transition-colors">Home</a>
+                        <a href="#dashboard" class="nav-link hover:text-blue-400 transition-colors">Dashboard</a>
+                        <a href="#market" class="nav-link hover:text-blue-400 transition-colors">Market</a>
+                        <a href="#positions" class="nav-link hover:text-blue-400 transition-colors">Positions</a>
+                        <a href="#analytics" class="nav-link hover:text-blue-400 transition-colors">Analytics</a>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div id="user-menu" class="hidden">
+                        <div class="flex items-center space-x-4">
+                            <div id="notifications-btn" class="relative cursor-pointer hover:text-blue-400 transition-colors">
+                                🔔
+                                <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-xs rounded-full px-1 hidden">0</span>
+                            </div>
+                            <div id="user-name" class="text-sm font-medium"></div>
+                            <button id="logout-btn" class="text-sm hover:text-red-400 transition-colors">Logout</button>
+                        </div>
+                    </div>
+                    <div id="auth-buttons" class="flex space-x-4">
+                        <button id="sign-in-btn" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                            Sign In
+                        </button>
+                        <button id="sign-up-btn" class="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-colors">
+                            Sign Up
+                        </button>
+                    </div>
+                    
+                    <!-- Mobile menu button -->
+                    <button id="mobile-menu-btn" class="md:hidden p-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden glass-effect border-t border-white/10">
+            <div class="px-4 py-2 space-y-2">
+                <a href="#home" class="block py-2 hover:text-blue-400 transition-colors">Home</a>
+                <a href="#dashboard" class="block py-2 hover:text-blue-400 transition-colors">Dashboard</a>
+                <a href="#market" class="block py-2 hover:text-blue-400 transition-colors">Market</a>
+                <a href="#positions" class="block py-2 hover:text-blue-400 transition-colors">Positions</a>
+                <a href="#analytics" class="block py-2 hover:text-blue-400 transition-colors">Analytics</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="relative z-10">
+        <!-- Home Section -->
+        <section id="home" class="min-h-screen flex items-center justify-center px-4">
+            <div class="max-w-4xl mx-auto text-center animate-fade-in">
+                <h1 class="text-5xl md:text-7xl font-bold mb-6 gradient-text">
+                    Professional Metal Hedging
+                </h1>
+                <p class="text-xl md:text-2xl mb-8 text-gray-300 max-w-3xl mx-auto">
+                    Advanced risk management and hedging solutions for non-ferrous metals trading. 
+                    Real-time market data, intelligent analytics, and comprehensive portfolio protection.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button id="get-started-btn" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold text-lg transition-all transform hover:scale-105">
+                        Get Started Free
+                    </button>
+                    <button id="watch-demo-btn" class="px-8 py-4 border border-white/30 hover:bg-white/10 rounded-lg font-semibold text-lg transition-all">
+                        Watch Demo
+                    </button>
+                </div>
+                
+                <!-- Live Market Ticker -->
+                <div id="market-ticker" class="mt-12 p-6 glass-effect rounded-xl border border-white/10">
+                    <h3 class="text-lg font-semibold mb-4">Live Market Prices</h3>
+                    <div id="ticker-content" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <!-- Market data will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="min-h-screen py-20 px-4" style="display: none;">
+            <div class="max-w-7xl mx-auto">
+                <h2 class="text-4xl font-bold mb-8 text-center gradient-text">Trading Dashboard</h2>
+                
+                <!-- Dashboard Overview -->
+                <div id="dashboard-overview" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <!-- Overview cards will be populated here -->
+                </div>
+                
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <!-- Portfolio Performance Chart -->
+                    <div class="glass-effect rounded-xl p-6 border border-white/10">
+                        <h3 class="text-xl font-semibold mb-4">Portfolio Performance</h3>
+                        <canvas id="performance-chart" width="400" height="200"></canvas>
+                    </div>
+                    
+                    <!-- Risk Distribution Chart -->
+                    <div class="glass-effect rounded-xl p-6 border border-white/10">
+                        <h3 class="text-xl font-semibold mb-4">Risk Distribution</h3>
+                        <canvas id="risk-chart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Recent Activity -->
+                <div class="glass-effect rounded-xl p-6 border border-white/10">
+                    <h3 class="text-xl font-semibold mb-4">Recent Activity</h3>
+                    <div id="recent-activity" class="space-y-3">
+                        <!-- Activity items will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Market Section -->
+        <section id="market" class="min-h-screen py-20 px-4" style="display: none;">
+            <div class="max-w-7xl mx-auto">
+                <h2 class="text-4xl font-bold mb-8 text-center gradient-text">Market Data</h2>
+                
+                <!-- Market Summary -->
+                <div id="market-summary" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Market summary cards will be populated here -->
+                </div>
+                
+                <!-- Market Data Table -->
+                <div class="glass-effect rounded-xl p-6 border border-white/10">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-semibold">Metal Prices</h3>
+                        <button id="refresh-market-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors">
+                            Refresh Data
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table id="market-table" class="w-full">
+                            <thead>
+                                <tr class="border-b border-white/10">
+                                    <th class="text-left py-3 px-4">Metal</th>
+                                    <th class="text-right py-3 px-4">Price (USD)</th>
+                                    <th class="text-right py-3 px-4">24h Change</th>
+                                    <th class="text-right py-3 px-4">Volume</th>
+                                    <th class="text-center py-3 px-4">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="market-table-body">
+                                <!-- Market data rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Positions Section -->
+        <section id="positions" class="min-h-screen py-20 px-4" style="display: none;">
+            <div class="max-w-7xl mx-auto">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-4xl font-bold gradient-text">My Positions</h2>
+                    <button id="new-position-btn" class="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors">
+                        + New Position
+                    </button>
+                </div>
+                
+                <!-- Position Filters -->
+                <div class="flex flex-wrap gap-4 mb-6">
+                    <select id="position-status-filter" class="px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white">
+                        <option value="all">All Positions</option>
+                        <option value="active">Active</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <select id="position-metal-filter" class="px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white">
+                        <option value="all">All Metals</option>
+                        <option value="copper">Copper</option>
+                        <option value="aluminum">Aluminum</option>
+                        <option value="zinc">Zinc</option>
+                        <option value="nickel">Nickel</option>
+                        <option value="lead">Lead</option>
+                        <option value="tin">Tin</option>
+                    </select>
+                </div>
+                
+                <!-- Positions Table -->
+                <div class="glass-effect rounded-xl p-6 border border-white/10">
+                    <div class="overflow-x-auto">
+                        <table id="positions-table" class="w-full">
+                            <thead>
+                                <tr class="border-b border-white/10">
+                                    <th class="text-left py-3 px-4">Metal</th>
+                                    <th class="text-left py-3 px-4">Type</th>
+                                    <th class="text-right py-3 px-4">Quantity</th>
+                                    <th class="text-right py-3 px-4">Entry Price</th>
+                                    <th class="text-right py-3 px-4">Current Price</th>
+                                    <th class="text-right py-3 px-4">P&L</th>
+                                    <th class="text-center py-3 px-4">Status</th>
+                                    <th class="text-center py-3 px-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positions-table-body">
+                                <!-- Position rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section id="analytics" class="min-h-screen py-20 px-4" style="display: none;">
+            <div class="max-w-7xl mx-auto">
+                <h2 class="text-4xl font-bold mb-8 text-center gradient-text">Analytics & Reports</h2>
+                
+                <!-- Analytics Overview -->
+                <div id="analytics-overview" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Analytics cards will be populated here -->
+                </div>
+                
+                <!-- Performance Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- P&L Chart -->
+                    <div class="glass-effect rounded-xl p-6 border border-white/10">
+                        <h3 class="text-xl font-semibold mb-4">Profit & Loss Trend</h3>
+                        <canvas id="pnl-chart" width="400" height="300"></canvas>
+                    </div>
+                    
+                    <!-- Metal Distribution Chart -->
+                    <div class="glass-effect rounded-xl p-6 border border-white/10">
+                        <h3 class="text-xl font-semibold mb-4">Portfolio Distribution</h3>
+                        <canvas id="distribution-chart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modals -->
+    
+    <!-- Sign In Modal -->
+    <div id="signin-modal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" id="signin-backdrop"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="glass-effect rounded-xl p-8 w-full max-w-md border border-white/10">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold">Sign In</h3>
+                    <button id="close-signin" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                <form id="signin-form">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Email</label>
+                        <input type="email" id="signin-email" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="signin-password" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <button type="submit" class="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors">
+                        Sign In
+                    </button>
+                </form>
+                <div class="mt-4 text-center">
+                    <p class="text-sm text-gray-400">
+                        Don't have an account? 
+                        <button id="switch-to-signup" class="text-blue-400 hover:text-blue-300">Sign up</button>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sign Up Modal -->
+    <div id="signup-modal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" id="signup-backdrop"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="glass-effect rounded-xl p-8 w-full max-w-md border border-white/10">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold">Sign Up</h3>
+                    <button id="close-signup" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                <form id="signup-form">
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">First Name</label>
+                            <input type="text" id="signup-firstname" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Last Name</label>
+                            <input type="text" id="signup-lastname" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Email</label>
+                        <input type="email" id="signup-email" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Company (Optional)</label>
+                        <input type="text" id="signup-company" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="signup-password" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        <p class="text-xs text-gray-400 mt-1">Minimum 8 characters</p>
+                    </div>
+                    <button type="submit" class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors">
+                        Create Account
+                    </button>
+                </form>
+                <div class="mt-4 text-center">
+                    <p class="text-sm text-gray-400">
+                        Already have an account? 
+                        <button id="switch-to-signin" class="text-blue-400 hover:text-blue-300">Sign in</button>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Position Modal -->
+    <div id="new-position-modal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" id="position-backdrop"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="glass-effect rounded-xl p-8 w-full max-w-lg border border-white/10">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold">Create New Position</h3>
+                    <button id="close-position-modal" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                <form id="new-position-form">
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Metal Type</label>
+                            <select id="position-metal" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                                <option value="">Select Metal</option>
+                                <option value="copper">Copper</option>
+                                <option value="aluminum">Aluminum</option>
+                                <option value="zinc">Zinc</option>
+                                <option value="nickel">Nickel</option>
+                                <option value="lead">Lead</option>
+                                <option value="tin">Tin</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Position Type</label>
+                            <select id="position-type" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                                <option value="">Select Type</option>
+                                <option value="long">Long (Buy)</option>
+                                <option value="short">Short (Sell)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Quantity (MT)</label>
+                            <input type="number" id="position-quantity" required min="0.1" step="0.1" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Entry Price (USD)</label>
+                            <input type="number" id="position-entry-price" required min="0" step="0.01" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Target Price (Optional)</label>
+                            <input type="number" id="position-target-price" min="0" step="0.01" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Stop Loss (Optional)</label>
+                            <input type="number" id="position-stop-loss" min="0" step="0.01" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Contract Date</label>
+                            <input type="date" id="position-contract-date" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Expiry Date</label>
+                            <input type="date" id="position-expiry-date" required class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full px-4 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors">
+                        Create Position
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container"></div>
+
+    <!-- JavaScript -->
+    <script src="/js/app.js"></script>
+</body>
+</html>
