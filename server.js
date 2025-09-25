@@ -1,21 +1,9 @@
 const express = require('express');
-const session = require('express-session');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
-const fs = require('fs');
-require('dotenv').config();
-
-// Import custom modules
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const Database = require('./database/database');
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const hedgingRoutes = require('./routes/hedging');
-const marketRoutes = require('./routes/market');
-const dashboardRoutes = require('./routes/dashboard');
-const { authenticateToken } = require('./middleware/auth');
-const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,139 +11,217 @@ const PORT = process.env.PORT || 3000;
 // Initialize database
 const db = new Database();
 
-// Security middleware
-app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com", "https://fonts.googleapis.com"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
-            imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", "wss:", "https:"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'none'"],
-        },
-    },
-}));
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) * 60 * 1000, // 15 minutes
-    max: parseInt(process.env.RATE_LIMIT_MAX), // limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again later.',
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-app.use('/api/', limiter);
+// JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET || 'mas-hedging-super-secure-secret-key-2024';
 
-// CORS configuration
-app.use(cors({
-    origin: process.env.NODE_ENV === 'production' ? false : 'http://localhost:3000',
-    credentials: true
-}));
+// Auth middleware
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Session configuration
-app.use(session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    if (!token) {
+        return res.status(401).json({ error: 'Access token required' });
     }
-}));
 
-// Static files
-app.use(express.static('public'));
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ error: 'Invalid or expired token' });
+        }
+        req.user = user;
+        next();
+    });
+};
 
-// Make database available to routes
-app.use((req, res, next) => {
-    req.db = db;
-    next();
+// Routes
+app.get('/health', (req, res) => {
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', authenticateToken, userRoutes);
-app.use('/api/hedging', authenticateToken, hedgingRoutes);
-app.use('/api/market', marketRoutes);
-app.use('/api/dashboard', authenticateToken, dashboardRoutes);
+app.get('/api/status', (req, res) => {
+    res.json({ 
+        status: 'MAS Hedging Platform Online',
+        version: '2.0.0',
+        features: ['Trading', 'Analytics', 'Real-time Data']
+    });
+});
 
-// Serve main application
+// Auth routes
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { firstName, lastName, email, company, password } = req.body;
+
+        if (!firstName || !lastName || !email || !password) {
+            return res.status(400).json({ error: 'All required fields must be provided' });
+        }
+
+        const existingUser = await db.getUserByEmail(email);
+        if (existingUser) {
+            return res.status(400).json({ error: 'User already exists' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const userId = await db.createUser({
+            firstName,
+            lastName,
+            email,
+            company: company || null,
+            password: hashedPassword
+        });
+
+        const token = jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: '24h' });
+
+        res.status(201).json({
+            message: 'User created successfully',
+            token,
+            user: { id: userId, firstName, lastName, email, company }
+        });
+    } catch (error) {
+        console.error('Registration error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
+        }
+
+        const user = await db.getUserByEmail(email);
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        const token = jwt.sign({ userId: user.id, email }, JWT_SECRET, { expiresIn: '24h' });
+
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                company: user.company
+            }
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Market data routes
+app.get('/api/market/data', (req, res) => {
+    const metals = ['copper', 'aluminum', 'zinc', 'nickel', 'lead', 'tin'];
+    const basePrice = {
+        copper: 8500,
+        aluminum: 2400,
+        zinc: 3000,
+        nickel: 21000,
+        lead: 2150,
+        tin: 24500
+    };
+
+    const marketData = metals.map(metal => {
+        const variation = (Math.random() - 0.5) * 0.1;
+        const price = basePrice[metal] * (1 + variation);
+        const change24h = (Math.random() - 0.5) * 0.06;
+        
+        return {
+            metal: metal.toUpperCase(),
+            price: parseFloat(price.toFixed(2)),
+            change24h: parseFloat((change24h * 100).toFixed(2)),
+            volume: Math.floor(Math.random() * 1000000) + 100000,
+            timestamp: new Date().toISOString()
+        };
+    });
+
+    res.json(marketData);
+});
+
+// Position routes
+app.get('/api/positions', authenticateToken, async (req, res) => {
+    try {
+        const positions = await db.getUserPositions(req.user.userId);
+        res.json(positions);
+    } catch (error) {
+        console.error('Get positions error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.post('/api/positions', authenticateToken, async (req, res) => {
+    try {
+        const { metal, type, quantity, entryPrice, targetPrice, stopLoss, contractDate, expiryDate } = req.body;
+
+        if (!metal || !type || !quantity || !entryPrice) {
+            return res.status(400).json({ error: 'Required fields missing' });
+        }
+
+        const positionId = await db.createPosition({
+            userId: req.user.userId,
+            metal,
+            type,
+            quantity: parseFloat(quantity),
+            entryPrice: parseFloat(entryPrice),
+            targetPrice: targetPrice ? parseFloat(targetPrice) : null,
+            stopLoss: stopLoss ? parseFloat(stopLoss) : null,
+            contractDate,
+            expiryDate
+        });
+
+        res.status(201).json({
+            message: 'Position created successfully',
+            positionId
+        });
+    } catch (error) {
+        console.error('Create position error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Dashboard routes
+app.get('/api/dashboard/summary', authenticateToken, async (req, res) => {
+    try {
+        const summary = await db.getUserDashboardSummary(req.user.userId);
+        res.json(summary);
+    } catch (error) {
+        console.error('Dashboard summary error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Serve the main page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
-        message: 'MAS Hedging functional platform is running',
-        timestamp: new Date().toISOString(),
-        version: '2.0.0'
-    });
+// Error handling
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({ error: 'Internal server error' });
 });
 
-// API status endpoint
-app.get('/api/status', (req, res) => {
-    res.json({
-        status: 'operational',
-        database: db.isConnected() ? 'connected' : 'disconnected',
-        features: {
-            authentication: true,
-            realTimeData: process.env.ENABLE_REAL_DATA === 'true',
-            notifications: process.env.ENABLE_NOTIFICATIONS === 'true',
-            analytics: process.env.ENABLE_ANALYTICS === 'true'
-        },
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Error handling middleware
-app.use(errorHandler);
-
-// 404 handler
 app.use((req, res) => {
-    res.status(404).json({ error: 'Endpoint not found' });
+    res.status(404).json({ error: 'Route not found' });
 });
 
-// Initialize database and start server
-async function startServer() {
-    try {
-        await db.initialize();
-        console.log('✅ Database initialized successfully');
-        
-        app.listen(PORT, () => {
-            console.log(`🚀 MAS Hedging Functional Platform running on port ${PORT}`);
-            console.log(`📱 Local: http://localhost:${PORT}`);
-            console.log(`🔒 Environment: ${process.env.NODE_ENV}`);
-            console.log(`💾 Database: ${process.env.DB_PATH}`);
-            console.log(`⚡ Features enabled: Real-time data, Authentication, Dashboard`);
-        });
-    } catch (error) {
-        console.error('❌ Failed to start server:', error);
-        process.exit(1);
-    }
-}
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-    console.log('🔄 Received SIGTERM, shutting down gracefully...');
-    await db.close();
-    process.exit(0);
+// Start server
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 MAS Hedging server running on port ${PORT}`);
 });
 
-process.on('SIGINT', async () => {
-    console.log('🔄 Received SIGINT, shutting down gracefully...');
-    await db.close();
-    process.exit(0);
-});
-
-startServer();
+module.exports = app;
